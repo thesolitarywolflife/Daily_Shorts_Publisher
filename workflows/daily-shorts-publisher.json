@@ -1,0 +1,1481 @@
+{
+  "name": "Daily Shorts Publisher V3",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Daily Shorts Publisher V3\n\n**Base:** your working n8n export.\n\n**Schedule:** 6:00 PM IST \u00b7 Config \u2192 Drive \u2192 Gemini \u2192 YouTube / Instagram / Facebook \u2192 log \u2192 `done/`.\n\n**Import:** n8n \u2192 Import this JSON. Re-map credentials if needed.\n\n**Dev:** edit `import/*.js` \u2192 `python3 import/sync-into-v3.py`.",
+        "height": 320,
+        "width": 420
+      },
+      "id": "3908f2fd-22cd-4857-b8fc-09e72d0eb93a",
+      "name": "Sticky \u2014 Read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * *"
+            }
+          ]
+        }
+      },
+      "id": "50074383-5c10-473e-b5ac-2044736b8105",
+      "name": "Schedule 6PM IST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        304
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "65e83aa7-3240-4498-89b9-749fb8d7afeb",
+      "name": "Manual test trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "const-1",
+              "name": "spreadsheet_id",
+              "value": "16E0osxUEslbOl1pARxHlp0sz9dP3qEJdWeesHAAuauU",
+              "type": "string"
+            },
+            {
+              "id": "const-2",
+              "name": "gemini_model",
+              "value": "gemini-3.5-flash-lite",
+              "type": "string"
+            },
+            {
+              "id": "const-3",
+              "name": "gemini_api_key",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "const-4",
+              "name": "meta_ig_user_id",
+              "value": "17841417011645656",
+              "type": "string"
+            },
+            {
+              "id": "const-5",
+              "name": "meta_fb_page_id",
+              "value": "1482621931590270",
+              "type": "string"
+            },
+            {
+              "id": "const-ig-url",
+              "name": "ig_video_url_prefix",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "const-yt-desc",
+              "name": "youtube_default_description",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "30a993a3-b9a5-4575-9d18-c952aa24cf32",
+      "name": "Workflow constants",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.spreadsheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Config"
+        },
+        "options": {}
+      },
+      "id": "ff0b78b9-52a5-41ce-99a6-224e6368c3e3",
+      "name": "Read Config tab",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        704,
+        384
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hKO2sAFGgLcaqwJ7",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function isEnabled(value) {\n  if (value === true || value === 1) return true;\n  const s = String(value ?? '').trim().toUpperCase();\n  return s === 'TRUE' || s === 'YES' || s === '1';\n}\n\nconst rows = $input.all().filter((item) => {\n  const cat = String(item.json.category ?? '').trim().toLowerCase();\n  if (!cat || cat === 'category') return false;\n  return true;\n});\n\nconst enabled = rows.filter((item) => isEnabled(item.json.enabled));\n\nif (enabled.length === 0) {\n  const debug = rows.map((item) => ({\n    category: item.json.category,\n    enabled: item.json.enabled,\n    enabledType: typeof item.json.enabled,\n    keys: Object.keys(item.json),\n  }));\n  throw new Error(\n    `No enabled categories. Check Config tab column \"enabled\" = TRUE. Rows seen: ${JSON.stringify(debug)}`,\n  );\n}\n\nreturn enabled;\n"
+      },
+      "id": "a9913c6e-2fc4-4ba3-b8f9-ca696567b3df",
+      "name": "Only enabled categories",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "2c4e745f-f51b-45bf-b064-0c7285a7e332",
+      "name": "Loop Over Categories",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1152,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "='{{ $json.drive_folder_id }}' in parents and mimeType contains 'video/' and trashed=false",
+        "filter": {},
+        "options": {
+          "fields": [
+            "id",
+            "name",
+            "mimeType",
+            "createdTime"
+          ]
+        }
+      },
+      "id": "df6c5ed6-6c97-4683-9e63-80c9dc8ffafd",
+      "name": "Search next videos",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1360,
+        384
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "CV8wOKsYuHy2Ti1A",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Loop Over Categories').item.json;\nconst files = $input.all()\n  .map((i) => i.json)\n  .filter((f) => f && f.id && f.name);\n\nif (files.length === 0) {\n  return [\n    {\n      json: {\n        ...config,\n        hasVideo: false,\n      },\n    },\n  ];\n}\n\nfiles.sort(\n  (a, b) => new Date(a.createdTime).getTime() - new Date(b.createdTime).getTime(),\n);\nconst file = files[0];\n\nreturn [\n  {\n    json: {\n      ...config,\n      hasVideo: true,\n      fileId: file.id,\n      fileName: file.name,\n      mimeType: file.mimeType || 'video/mp4',\n      createdTime: file.createdTime,\n    },\n  },\n];"
+      },
+      "id": "c5ff24dc-0c8c-44e2-aba0-a8dadb85ca20",
+      "name": "Pick oldest video",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1584,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "has-video",
+              "leftValue": "={{ $json.hasVideo }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "853b573d-ec19-4ef8-ba7f-b6324a6f5f3d",
+      "name": "Has video?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1808,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Workflow constants').item.json.spreadsheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $json.sheet_tab }}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $now.setZone('Asia/Kolkata').toFormat('yyyy-MM-dd') }}",
+            "time": "={{ $now.setZone('Asia/Kolkata').toFormat('HH:mm') }}",
+            "ai_title": "",
+            "instagram_link": "",
+            "facebook_link": "",
+            "youtube_link": "",
+            "status": "skipped",
+            "notes": "No video in folder",
+            "drive_file_id": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "type": "string"
+            },
+            {
+              "id": "time",
+              "displayName": "time",
+              "type": "string"
+            },
+            {
+              "id": "ai_title",
+              "displayName": "ai_title",
+              "type": "string"
+            },
+            {
+              "id": "instagram_link",
+              "displayName": "instagram_link",
+              "type": "string"
+            },
+            {
+              "id": "facebook_link",
+              "displayName": "facebook_link",
+              "type": "string"
+            },
+            {
+              "id": "youtube_link",
+              "displayName": "youtube_link",
+              "type": "string"
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "type": "string"
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "type": "string"
+            },
+            {
+              "id": "drive_file_id",
+              "displayName": "drive_file_id",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f951c577-8a4b-48bc-9026-9b63d579f218",
+      "name": "Log skipped (no video)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2032,
+        544
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hKO2sAFGgLcaqwJ7",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.fileId }}"
+        },
+        "options": {}
+      },
+      "id": "87684355-f63f-49ce-b9b6-e99d817cf2fc",
+      "name": "Download video",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2032,
+        272
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "CV8wOKsYuHy2Ti1A",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Paste into n8n: \"Gemini title + captions\" (Code node)\n// Run Once for All Items | JavaScript\n//\n// Pipeline: Google Drive \u2192 Pick oldest \u2192 Download video (MP4 binary)\n//   \u2192 this node (Gemini API for title; pass-through same binary)\n//   \u2192 parallel: Upload YouTube | IG branch | FB branch\n//\n// Key: GEMINI_API_KEY in docker/.env (restart compose after change).\n\nconst item = $input.first();\nconst meta = item.json;\n\nlet wc = {};\ntry {\n  wc = $('Workflow constants').first()?.json || {};\n} catch {\n  /* Workflow constants node missing */\n}\n\nconst preferredModel = (wc.gemini_model || 'gemini-3.5-flash-lite').trim();\n\nlet fromEnv = '';\ntry {\n  if (typeof $env !== 'undefined' && $env.GEMINI_API_KEY) {\n    fromEnv = String($env.GEMINI_API_KEY);\n  }\n} catch {\n  /* n8n blocks $env unless N8N_BLOCK_ENV_ACCESS_IN_NODE=false \u2014 use Workflow constants */\n}\n\nconst apiKey = String(fromEnv || wc.gemini_api_key || '').trim();\n\nif (!apiKey) {\n  throw new Error(\n    'Gemini API key missing. Either: (1) Workflow constants \u2192 gemini_api_key, or (2) Docker env GEMINI_API_KEY + N8N_BLOCK_ENV_ACCESS_IN_NODE=false, then restart n8n.',\n  );\n}\n\nasync function geminiRequest(method, path, body) {\n  const opts = {\n    method,\n    url: `https://generativelanguage.googleapis.com/v1beta/${path}`,\n    headers: {\n      'Content-Type': 'application/json',\n      'x-goog-api-key': apiKey,\n    },\n    json: true,\n    ignoreHttpStatusErrors: true,\n  };\n  if (body !== undefined) opts.body = body;\n  return await this.helpers.httpRequest(opts);\n}\n\nconst listResp = await geminiRequest.call(this, 'GET', 'models', undefined);\nif (listResp?.error) {\n  throw new Error(\n    `Gemini list models failed: ${listResp.error.message || JSON.stringify(listResp.error)}. ` +\n      'https://aistudio.google.com/apikey',\n  );\n}\n\nconst generateModels = (listResp.models || [])\n  .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))\n  .map((m) => (m.name || '').replace(/^models\\//, ''))\n  .filter(Boolean);\n\nif (generateModels.length === 0) {\n  throw new Error('No generateContent models returned for this API key.');\n}\n\nfunction isRetryable(msg) {\n  return /no longer available|not available to new users|not found|429|quota|RESOURCE_EXHAUSTED|rate limit|billing|depleted|invalid argument.*video|mime/i.test(\n    String(msg || ''),\n  );\n}\n\nfunction pickModels() {\n  const order = [\n    preferredModel,\n    'gemini-3.5-flash-lite',\n    'gemini-3.8-flash',\n    'gemini-2.5-flash',\n    'gemini-2.5-flash-lite',\n    'gemini-2.5-flash-preview-05-20',\n    'gemini-flash-latest',\n    'gemini-flash-lite-latest',\n  ];\n  const picked = [];\n  for (const id of order) {\n    if (id && generateModels.includes(id) && !picked.includes(id)) picked.push(id);\n  }\n  for (const id of generateModels) {\n    if (/flash/i.test(id) && !/tts|image|embedding|exp-/i.test(id) && !picked.includes(id)) {\n      picked.push(id);\n    }\n  }\n  if (!picked.length) picked.push(generateModels[0]);\n  return picked;\n}\n\nfunction extractTitle(response) {\n  const parts = response?.candidates?.[0]?.content?.parts || [];\n  return parts\n    .map((p) => (typeof p.text === 'string' ? p.text : ''))\n    .join('')\n    .replace(/[\\n\\r#\"]+/g, ' ')\n    .trim()\n    .slice(0, 80);\n}\n\n/** Strip category/channel prefix if the model still adds it (e.g. \"Balaji relaxes\u2026\"). */\nfunction polishTitle(title, categoryLabel) {\n  let t = String(title || '').trim();\n  if (!t) return t;\n  const labels = [\n    categoryLabel,\n    'Balaji',\n    'Laya',\n    'Balaji and Laya',\n    'Balaji_and_Laya',\n    'Friends',\n  ]\n    .filter(Boolean)\n    .map((s) => String(s).trim())\n    .filter((s) => s.length > 1);\n  for (const label of labels) {\n    const re = new RegExp(`^${label.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\\\s*[-\u2013\u2014:|]?\\\\s*`, 'i');\n    t = t.replace(re, '').trim();\n    const reMid = new RegExp(`\\\\b${label.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\\\b`, 'gi');\n    t = t.replace(reMid, '').replace(/\\s{2,}/g, ' ').trim();\n  }\n  return t.slice(0, 80);\n}\n\nconst modelsToTry = pickModels();\n\nconst binaryKey = Object.keys(item.binary || {})[0];\nif (!binaryKey) throw new Error('No video binary from Download video.');\n\nconst buffer = await this.helpers.getBinaryDataBuffer(0, binaryKey);\nconst maxBytes = 18 * 1024 * 1024;\nif (buffer.length > maxBytes) {\n  throw new Error(`Video too large (${(buffer.length / 1024 / 1024).toFixed(1)} MB). Max ~18 MB.`);\n}\n\nconst base64 = buffer.toString('base64');\nconst mimeType = item.binary[binaryKey].mimeType || meta.mimeType || 'video/mp4';\nconst category = String(meta.category || 'shorts').trim();\nconst hashtags = meta.standard_hashtags || meta.standard_hashtag || '';\n\n// Category (Balaji, Laya, \u2026) is routing only \u2014 never in the public title.\nconst prompt = [\n  'You write one short title for a calm, relaxing anime-style vertical short (cozy / unwind vibe).',\n  'Watch the video. Describe what you see: who is there (e.g. a man, someone), what they do, place, mood, props.',\n  'Use natural English with a relaxing tone. Include at least one calm word such as: relaxing, unwind, peaceful, quiet, cozy, serene, gentle, calm.',\n  'If someone is resting or sitting peacefully, say it plainly (e.g. \"A man relaxing under the stars with coffee\", \"Unwinding by the mountains at dusk\").',\n  'Vary wording each time \u2014 do not reuse the same sentence pattern.',\n  'Return ONLY the title. Max 80 characters. No hashtags. No quotes.',\n  'Do NOT use: filename; Animate, export, mp4;',\n  `channel/category names (${category}, Balaji, Laya, Friends) unless written on-screen in the video.`,\n].join(' ');\n\nconst bodyVideo = {\n  contents: [\n    {\n      parts: [\n        { inline_data: { mime_type: mimeType, data: base64 } },\n        { text: prompt },\n      ],\n    },\n  ],\n  generationConfig: { temperature: 0.85, maxOutputTokens: 256 },\n};\n\nconst bodyTextOnly = {\n  contents: [\n    {\n      parts: [\n        {\n          text: `${prompt} (If video unavailable: invent a cozy relaxing scene title with calm wording \u2014 no channel names, not a filename.)`,\n        },\n      ],\n    },\n  ],\n  generationConfig: { temperature: 0.85, maxOutputTokens: 256 },\n};\n\nconst gemini_attempts = [];\nlet response;\nlet usedModel;\nlet titleSource = 'video';\nlet lastError = '';\n\nfor (const m of modelsToTry) {\n  response = await geminiRequest.call(this, 'POST', `models/${m}:generateContent`, bodyVideo);\n  const title = !response?.error && response?.candidates?.length ? extractTitle(response) : '';\n  if (title) {\n    usedModel = m;\n    lastError = '';\n    gemini_attempts.push({ step: 'video', model: m, ok: true });\n    break;\n  }\n  lastError = response?.error?.message || 'empty or blocked response';\n  gemini_attempts.push({ step: 'video', model: m, ok: false, error: lastError });\n  if (!isRetryable(lastError)) break;\n}\n\nlet ai_title = response && !response?.error ? extractTitle(response) : '';\n\nif (!ai_title) {\n  titleSource = 'text-only';\n  for (const m of modelsToTry) {\n    response = await geminiRequest.call(this, 'POST', `models/${m}:generateContent`, bodyTextOnly);\n    ai_title = !response?.error && response?.candidates?.length ? extractTitle(response) : '';\n    if (ai_title) {\n      usedModel = `${m} (text-only fallback)`;\n      gemini_attempts.push({ step: 'text-only', model: m, ok: true });\n      break;\n    }\n    lastError = response?.error?.message || 'empty response';\n    gemini_attempts.push({ step: 'text-only', model: m, ok: false, error: lastError });\n    if (!isRetryable(lastError)) break;\n  }\n}\n\nif (!ai_title) {\n  throw new Error(\n    `Gemini could not produce a title. Last error: ${response?.error?.message || lastError}. ` +\n      `Tried: ${modelsToTry.slice(0, 6).join(', ')}. Attempts: ${JSON.stringify(gemini_attempts)}`,\n  );\n}\n\nai_title = polishTitle(ai_title, category);\nif (!ai_title) {\n  throw new Error('Gemini title empty after polish. Check prompt or video input.');\n}\n\n// YouTube: AI title only; description from Config / Workflow constants (not Gemini).\n// IG + FB: title + hashtags from Config.\nconst socialCaption = hashtags ? `${ai_title}\\n\\n${hashtags}`.trim() : ai_title;\nconst youtubeDescription = String(\n  meta.youtube_description ||\n    meta.default_youtube_description ||\n    wc.youtube_default_description ||\n    '',\n).trim();\n\nconst driveFileName = String(meta.fileName || meta.name || '').trim();\nconst binaryMeta = item.binary?.[binaryKey] || {};\nconst binaryFileName = String(\n  binaryMeta.fileName || binaryMeta.file_name || driveFileName || 'video.mp4',\n).trim();\nconst videoBytes = buffer.length;\n\n// One stable MP4 attachment for YouTube + IG + FB (avoids parallel reads on filesystem refs).\nconst videoBinary = await this.helpers.prepareBinaryData(\n  buffer,\n  binaryFileName,\n  mimeType,\n);\n\nreturn [\n  {\n    json: {\n      ...meta,\n      drive_video_file_name: driveFileName,\n      binary_video_file_name: binaryFileName,\n      video_byte_size: videoBytes,\n      ai_title,\n      gemini_model_used: usedModel,\n      gemini_title_source: titleSource,\n      gemini_attempts,\n      youtubeTitle: ai_title.slice(0, 100),\n      youtubeDescription,\n      igCaption: socialCaption,\n      fbCaption: socialCaption,\n    },\n    binary: {\n      data: videoBinary,\n    },\n  },\n];\n"
+      },
+      "id": "fed8670d-73f2-4c30-8623-8ef81b492027",
+      "name": "Gemini title + captions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2224,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Video pipeline\n\n**Drive** \u2192 Download \u2192 **Gemini** (stable `binary.data`)\n\u2192 **YouTube** | **IG rupload** | **FB rupload**\n\nIG/FB: resumable upload + **Prepare** (`prepareBinaryData`). Do not use Drive `video_url` for Meta \u2014 transcode fails.\n",
+        "height": 280,
+        "width": 380
+      },
+      "id": "d558fdfc-9af4-4baa-bc99-30f72cbe6ea1",
+      "name": "Sticky \u2014 Social",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $json.youtubeTitle }}",
+        "categoryId": "1",
+        "options": {
+          "description": "={{ $json.youtubeDescription }}",
+          "privacyStatus": "public"
+        }
+      },
+      "id": "088ba37b-ad6b-4b90-881c-e75a77c8184c",
+      "name": "Upload YouTube",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        2464,
+        -176
+      ],
+      "retryOnFail": false,
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "gFI2M7AEqng4KQLD",
+          "name": "YouTube account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Paste into n8n node: \"Collect post links\" (Code node)\n\nfunction nodeJson(nodeName) {\n  try {\n    return $(nodeName).first()?.json || {};\n  } catch {\n    return {};\n  }\n}\n\nconst base = $('Gemini title + captions').first().json;\nconst yt = nodeJson('Upload YouTube');\nconst igCreate = nodeJson('IG Reels 1 Create container');\nconst igPublish = nodeJson('Instagram Reels (Graph)');\nconst igMeta = nodeJson('IG Fetch post link');\nconst igRupload = nodeJson('IG Reels 3 Rupload');\nconst fbStart = nodeJson('FB Reels 1 Start');\nconst fbUpload = nodeJson('FB Reels 3 Upload video');\nconst fbFinish = nodeJson('FB Reels 4 Finish');\nconst fbMeta = nodeJson('FB Fetch post link');\n\nfunction youtubeVideoId(data) {\n  if (!data || data.error) return '';\n  return (\n    data.id ||\n    data.videoId ||\n    data.uploadId ||\n    data?.snippet?.resourceId?.videoId ||\n    data?.snippet?.id ||\n    ''\n  );\n}\n\nfunction errText(data) {\n  if (!data) return 'no response';\n  if (typeof data.error === 'string') return data.error;\n  if (data.error?.message) return data.error.message;\n  if (data.message) return data.message;\n  if (data.errorDescription) return data.errorDescription;\n  if (data.description) return data.description;\n  return '';\n}\n\nfunction hasGraphError(data) {\n  if (!data || typeof data !== 'object') return true;\n  if (data.error) return true;\n  if (data.status === 'failed' || data.status === 'error') return true;\n  return false;\n}\n\nfunction metaUploadOk(data) {\n  if (hasGraphError(data)) return false;\n  if (data.success === true) return true;\n  if (data.h) return true;\n  if (typeof data.start_offset === 'string' && data.start_offset !== '0') return true;\n  return false;\n}\n\nfunction fbPublishOk(finish) {\n  if (hasGraphError(finish)) return false;\n  return finish.success === true || Boolean(finish.post_id || finish.id);\n}\n\nfunction youtubeNote(data) {\n  const t = errText(data);\n  if (/uploadLimitExceeded|exceeded.*upload|daily.*limit|quota/i.test(t)) {\n    return 'YouTube skipped: daily upload limit reached (resets ~midnight US Pacific).';\n  }\n  return `YouTube failed: ${t || 'no video id'}`;\n}\n\n/** Graph often returns permalink_url as /reel/123/ \u2014 Sheets need a full URL. */\nfunction normalizeFacebookLink(raw) {\n  let s = String(raw || '').trim();\n  if (!s) return '';\n  if (/^https?:\\/\\//i.test(s)) return s.replace(/\\/+$/, '') || s;\n  if (s.startsWith('//')) return `https:${s}`.replace(/\\/+$/, '');\n  if (s.startsWith('/')) {\n    const path = s.replace(/\\/+$/, '');\n    return `https://www.facebook.com${path}`;\n  }\n  if (/^\\d+$/.test(s)) return `https://www.facebook.com/reel/${s}`;\n  return s;\n}\n\nconst vid = youtubeVideoId(yt);\nconst youtube_link = vid ? `https://www.youtube.com/shorts/${vid}` : '';\n\nconst igContainerOk = !hasGraphError(igCreate) && Boolean(igCreate?.id);\nconst igPublishedOk = !hasGraphError(igPublish) && Boolean(igPublish?.id);\nconst igPermalink = !hasGraphError(igMeta) && igMeta?.permalink ? String(igMeta.permalink) : '';\n\nconst instagram_link =\n  igContainerOk && igPublishedOk && igPermalink ? igPermalink : '';\n\nlet facebook_link = '';\nif (\n  metaUploadOk(fbUpload) &&\n  fbPublishOk(fbFinish) &&\n  !hasGraphError(fbMeta) &&\n  fbMeta?.permalink_url\n) {\n  facebook_link = normalizeFacebookLink(fbMeta.permalink_url);\n}\n\nconst platformNotes = [];\nif (!youtube_link) {\n  platformNotes.push(youtubeNote(yt));\n}\nif (!instagram_link) {\n  const containerId = igCreate?.id || igPublish?.id;\n  const igId = containerId ? ` (container ${containerId})` : '';\n  const igErr =\n    errText(igCreate) ||\n    errText(igRupload) ||\n    errText(igPublish) ||\n    errText(igMeta) ||\n    (igContainerOk && igPublishedOk ? 'no permalink from IG Fetch post link' : 'no permalink');\n  platformNotes.push(`Instagram failed: ${igErr}${igId}`);\n}\nif (!facebook_link) {\n  const fbVid = fbStart?.video_id ? ` (video id ${fbStart.video_id})` : '';\n  platformNotes.push(\n    `Facebook failed: ${errText(fbUpload) || errText(fbFinish) || errText(fbMeta) || errText(fbStart) || 'no permalink'}${fbVid}`,\n  );\n}\n\nconst okCount = [youtube_link, instagram_link, facebook_link].filter(Boolean).length;\nlet status = 'posted';\nif (okCount === 0) status = 'failed';\nelse if (okCount < 3) status = 'partial';\n\nlet notes = platformNotes.join(' | ');\nif (base.gemini_skip_reason) {\n  notes = [base.gemini_skip_reason, notes].filter(Boolean).join(' | ');\n}\n\nconst doneId = String(base.drive_done_folder_id || '');\nconst publishedSomewhere = Boolean(youtube_link || instagram_link || facebook_link);\nconst moveToDone =\n  Boolean(base.fileId) &&\n  base.hasVideo !== false &&\n  Boolean(doneId) &&\n  !doneId.includes('PASTE') &&\n  publishedSomewhere;\n\nreturn [\n  {\n    json: {\n      ...base,\n      youtube_link,\n      instagram_link,\n      facebook_link,\n      status,\n      notes,\n      moveToDone,\n    },\n  },\n];\n"
+      },
+      "id": "e01fb4a8-3fe0-4212-87b0-3824060eaffe",
+      "name": "Collect post links",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4112,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Workflow constants').item.json.spreadsheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $json.sheet_tab }}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $now.setZone('Asia/Kolkata').toFormat('yyyy-MM-dd') }}",
+            "time": "={{ $now.setZone('Asia/Kolkata').toFormat('HH:mm') }}",
+            "ai_title": "={{ $json.ai_title }}",
+            "instagram_link": "={{ $json.instagram_link }}",
+            "facebook_link": "={{ $json.facebook_link }}",
+            "youtube_link": "={{ $json.youtube_link }}",
+            "status": "={{ $json.status }}",
+            "notes": "={{ $json.notes }}",
+            "drive_file_id": "={{ $json.fileId }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "type": "string"
+            },
+            {
+              "id": "time",
+              "displayName": "time",
+              "type": "string"
+            },
+            {
+              "id": "ai_title",
+              "displayName": "ai_title",
+              "type": "string"
+            },
+            {
+              "id": "instagram_link",
+              "displayName": "instagram_link",
+              "type": "string"
+            },
+            {
+              "id": "facebook_link",
+              "displayName": "facebook_link",
+              "type": "string"
+            },
+            {
+              "id": "youtube_link",
+              "displayName": "youtube_link",
+              "type": "string"
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "type": "string"
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "type": "string"
+            },
+            {
+              "id": "drive_file_id",
+              "displayName": "drive_file_id",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4b7ad7d6-34a9-4cd9-9213-e487030d57e7",
+      "name": "Log post row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4432,
+        -64
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hKO2sAFGgLcaqwJ7",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "move-done",
+              "leftValue": "={{ $('Collect post links').item.json.moveToDone }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8251556e-914e-4d13-9403-5e969de3766b",
+      "name": "Move to done?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4432,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "move",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Collect post links').item.json.fileId }}"
+        },
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Collect post links').item.json.drive_done_folder_id }}"
+        }
+      },
+      "id": "e4149823-dd01-49b6-97fd-c0a4db8a986c",
+      "name": "Move file to done",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        4656,
+        192
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "CV8wOKsYuHy2Ti1A",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "90726f06-fbec-49f5-9bc7-2936694af8c0",
+      "name": "Continue loop",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        4480,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/v23.0/' + $('Workflow constants').first().json.meta_ig_user_id + '/media' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApiOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "media_type",
+              "value": "REELS"
+            },
+            {
+              "name": "upload_type",
+              "value": "resumable"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $('Gemini title + captions').item.json.igCaption }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "v2-ig-create-0001",
+      "name": "IG Reels 1 Create container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2480,
+        160
+      ],
+      "credentials": {
+        "facebookGraphApiOAuth2Api": {
+          "id": "70l2LNA7f7EqzpM0",
+          "name": "Facebook Graph account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "v2-ig-merge-0008",
+      "name": "IG Merge video + container",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2672,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Node: IG Reels 2 Prepare upload (after IG Merge video + container)\n// Full MP4 bytes for rupload (same pattern as FB Prepare).\n\nconst item = $input.first();\nconst j = item.json || {};\n\nconst containerId = j.id || j.ig_container_id;\nconst containerUri = j.uri;\nif (!containerId && !containerUri) {\n  throw new Error(\n    'Missing IG container id/uri after merge. json=' + JSON.stringify(j).slice(0, 400),\n  );\n}\n\nconst gem = $('Gemini title + captions').first();\nif (!gem?.binary?.data && !Object.keys(gem.binary || {}).length) {\n  throw new Error('Missing video binary on Gemini title + captions.');\n}\n\nconst binaryKey = gem.binary?.data ? 'data' : Object.keys(gem.binary)[0];\nconst srcMeta = gem.binary[binaryKey] || {};\n\nconst buffer = await this.helpers.getBinaryDataBuffer(\n  0,\n  binaryKey,\n  $('Gemini title + captions').all(),\n);\nconst fileSize = buffer?.length || Number(gem.json?.video_byte_size) || 0;\nif (!(fileSize > 0)) {\n  throw new Error('Video buffer empty on Gemini output.');\n}\n\nconst fileName =\n  srcMeta.fileName ||\n  srcMeta.file_name ||\n  gem.json?.binary_video_file_name ||\n  gem.json?.drive_video_file_name ||\n  'video.mp4';\nconst mimeType = srcMeta.mimeType || srcMeta.mime_type || 'video/mp4';\n\nconst binaryData = await this.helpers.prepareBinaryData(buffer, fileName, mimeType);\n\nreturn [\n  {\n    json: {\n      ...j,\n      id: containerId || j.id,\n      rupload_url:\n        containerUri ||\n        j.rupload_url ||\n        `https://rupload.facebook.com/ig-api-upload/v23.0/${containerId}`,\n      file_size: String(fileSize),\n      ig_container_id: containerId,\n    },\n    binary: {\n      data: binaryData,\n    },\n  },\n];\n"
+      },
+      "id": "v2-ig-prep-0009",
+      "name": "IG Reels 2 Prepare upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2816,
+        160
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ (() => { const c = $('IG Reels 1 Create container').first()?.json || {}; if (c.uri) return c.uri; if (c.id) return 'https://rupload.facebook.com/ig-api-upload/v23.0/' + c.id; return ''; })() }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApiOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "offset",
+              "value": "0"
+            },
+            {
+              "name": "file_size",
+              "value": "={{ $json.file_size }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/octet-stream"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "v2-ig-rupload-0003",
+      "name": "IG Reels 3 Rupload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2976,
+        160
+      ],
+      "credentials": {
+        "facebookGraphApiOAuth2Api": {
+          "id": "70l2LNA7f7EqzpM0",
+          "name": "Facebook Graph account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 120
+      },
+      "id": "v2-ig-wait-0006",
+      "name": "IG Wait for processing",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3168,
+        160
+      ],
+      "webhookId": "ig-wait-9jmhpfh5fjw"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/v23.0/' + $('Workflow constants').first().json.meta_ig_user_id + '/media_publish' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApiOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $('IG Reels 1 Create container').first().json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "v2-ig-publish-0004",
+      "name": "Instagram Reels (Graph)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3360,
+        160
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "facebookGraphApiOAuth2Api": {
+          "id": "70l2LNA7f7EqzpM0",
+          "name": "Facebook Graph account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://graph.facebook.com/v23.0/' + ($json.id || $('Instagram Reels (Graph)').first().json.id) + '?fields=permalink,id,media_type' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApiOAuth2Api",
+        "options": {}
+      },
+      "id": "v3-ig-fetch-permalink",
+      "name": "IG Fetch post link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3552,
+        160
+      ],
+      "credentials": {
+        "facebookGraphApiOAuth2Api": {
+          "id": "70l2LNA7f7EqzpM0",
+          "name": "Facebook Graph account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "v2-merge-social-0005",
+      "name": "Merge social uploads",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        3936,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/v23.0/' + $('Workflow constants').first().json.meta_fb_page_id + '/video_reels' }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $('FB Resolve page token').first().json.page_access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"upload_phase\": \"start\" }",
+        "options": {}
+      },
+      "id": "4579b50d-5a9e-414e-8e99-3d938f9aa7bc",
+      "name": "FB Reels 1 Start",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2816,
+        448
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Node: FB Reels 2 Prepare upload (after FB Reels 1 Start)\n// Fresh binary attachment for rupload (pass-through metadata alone corrupts uploads).\n\nconst start = $('FB Reels 1 Start').first()?.json || {};\nconst item = $input.first();\nconst j = { ...start, ...(item.json || {}) };\n\nconst videoId = j.video_id || j.videoId;\nconst uploadUrl = j.upload_url || j.uploadUrl;\nif (j.error) {\n  throw new Error('FB Start failed: ' + JSON.stringify(j.error).slice(0, 500));\n}\nif (!videoId) {\n  throw new Error('Missing video_id from FB Start. json=' + JSON.stringify(j).slice(0, 400));\n}\n\nconst gem = $('Gemini title + captions').first();\nif (!gem?.binary?.data && !Object.keys(gem.binary || {}).length) {\n  throw new Error('Missing video binary on Gemini title + captions.');\n}\n\nconst binaryKey = gem.binary?.data ? 'data' : Object.keys(gem.binary)[0];\nconst srcMeta = gem.binary[binaryKey] || {};\n\nconst buffer = await this.helpers.getBinaryDataBuffer(\n  0,\n  binaryKey,\n  $('Gemini title + captions').all(),\n);\nconst fileSize = buffer?.length || Number(gem.json?.video_byte_size) || 0;\nif (!(fileSize > 0)) {\n  throw new Error('Video buffer empty on Gemini output.');\n}\n\nconst fileName =\n  srcMeta.fileName ||\n  srcMeta.file_name ||\n  gem.json?.binary_video_file_name ||\n  gem.json?.drive_video_file_name ||\n  'video.mp4';\nconst mimeType = srcMeta.mimeType || srcMeta.mime_type || 'video/mp4';\n\nconst binaryData = await this.helpers.prepareBinaryData(buffer, fileName, mimeType);\n\nconst resolvedUploadUrl =\n  uploadUrl || `https://rupload.facebook.com/video-upload/v23.0/${videoId}`;\n\nreturn [\n  {\n    json: {\n      video_id: videoId,\n      upload_url: resolvedUploadUrl,\n      file_size: String(fileSize),\n    },\n    binary: {\n      data: binaryData,\n    },\n  },\n];\n"
+      },
+      "id": "v3-fb-prep-002",
+      "name": "FB Reels 2 Prepare upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2992,
+        448
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.upload_url }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $('FB Resolve page token').first().json.page_access_token }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "offset",
+              "value": "0"
+            },
+            {
+              "name": "file_size",
+              "value": "={{ $json.file_size }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/octet-stream"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "v3-fb-upload-003",
+      "name": "FB Reels 3 Upload video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3184,
+        448
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/v23.0/' + $('Workflow constants').first().json.meta_fb_page_id + '/video_reels' }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $('FB Resolve page token').first().json.page_access_token }}"
+            },
+            {
+              "name": "upload_phase",
+              "value": "finish"
+            },
+            {
+              "name": "video_id",
+              "value": "={{ $('FB Reels 1 Start').first().json.video_id }}"
+            },
+            {
+              "name": "video_state",
+              "value": "PUBLISHED"
+            },
+            {
+              "name": "description",
+              "value": "={{ $('Gemini title + captions').item.json.fbCaption }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "v3-fb-finish-004",
+      "name": "FB Reels 4 Finish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3584,
+        448
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://graph.facebook.com/v23.0/' + $('FB Reels 1 Start').first().json.video_id }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $('FB Resolve page token').first().json.page_access_token }}"
+            },
+            {
+              "name": "fields",
+              "value": "permalink_url,id,title"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "v3-fb-fetch-005",
+      "name": "FB Fetch post link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3776,
+        448
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 45
+      },
+      "id": "v3-fb-wait-006",
+      "name": "FB Wait after upload",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3376,
+        448
+      ],
+      "webhookId": "fb-wait-after-upload"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://graph.facebook.com/v23.0/' + $('Workflow constants').first().json.meta_fb_page_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApiOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,name,access_token"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "v3-fb-get-accounts",
+      "name": "FB Get page token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2480,
+        448
+      ],
+      "credentials": {
+        "facebookGraphApiOAuth2Api": {
+          "id": "70l2LNA7f7EqzpM0",
+          "name": "Facebook Graph account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Node: FB Resolve page token (after FB Get page token)\n\nconst pageId = String(\n  $('Workflow constants').first()?.json?.meta_fb_page_id ||\n    $env.META_FB_PAGE_ID ||\n    '',\n).trim();\n\nif (!pageId) throw new Error('Set meta_fb_page_id in Workflow constants.');\n\nconst raw = $input.first()?.json || {};\n\nif (raw.error?.code === 104 || /access token is required/i.test(String(raw.error?.message || ''))) {\n  throw new Error(\n    'Facebook Graph credential sent no access token (Graph #104). ' +\n      'In n8n: Credentials \u2192 Facebook Graph account \u2192 Reconnect (Balaji1 App ID/Secret). ' +\n      'Balaji1 \u2192 Facebook Login \u2192 add redirect http://localhost:5678/rest/oauth2-credential/callback . ' +\n      'On node FB Get page token, re-select the same credential as Instagram nodes.',\n  );\n}\n\nfunction pickPagePayload(body) {\n  if (!body || typeof body !== 'object') return null;\n  if (body.error) return { error: body.error };\n  // Direct GET /{page-id}?fields=access_token,...\n  if (body.access_token && String(body.id || pageId) === pageId) return body;\n  if (body.access_token && !body.data) return { ...body, id: body.id || pageId };\n  // GET /me/accounts\n  const list = body.data || body.accounts?.data;\n  if (Array.isArray(list)) {\n    return list.find((p) => String(p.id) === pageId) || null;\n  }\n  return null;\n}\n\nconst page = pickPagePayload(raw);\n\nif (page?.error) {\n  const msg = page.error.message || JSON.stringify(page.error);\n  throw new Error(\n    `Graph error loading Page token: ${msg}. ` +\n      'Add scopes pages_show_list + pages_manage_posts, reconnect Facebook credential, select Page TheSolitarywolf.',\n  );\n}\n\nif (!page?.access_token) {\n  throw new Error(\n    `No Page access_token for Page id ${pageId}. Response keys: ${JSON.stringify(Object.keys(raw))}. ` +\n      'Raw (trimmed): ' +\n      JSON.stringify(raw).slice(0, 800) +\n      '. Fix: Meta app \u2192 pages_manage_posts \u2192 n8n credential Custom Scopes \u2192 reconnect. See META-FB-REELS-PERMISSION-FIX.md',\n  );\n}\n\nreturn [\n  {\n    json: {\n      page_id: String(page.id || pageId),\n      page_name: page.name || '',\n      page_access_token: page.access_token,\n    },\n  },\n];\n"
+      },
+      "id": "v3-fb-resolve-token",
+      "name": "FB Resolve page token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2656,
+        448
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Node: IG Build video URL (after Gemini)\n// Meta pulls the MP4 from this URL \u2014 no rupload. Drive file/folder must allow link access.\n\nconst gem = $('Gemini title + captions').first()?.json || {};\nconst fileId = String(gem.fileId || '').trim();\nif (!fileId) {\n  throw new Error('Missing fileId for IG video_url. Check Pick oldest / Download video.');\n}\n\nlet wc = {};\ntry {\n  wc = $('Workflow constants').first()?.json || {};\n} catch {\n  /* optional */\n}\n\nconst prefix = String(wc.ig_video_url_prefix || '').trim();\nconst fileName = String(gem.fileName || gem.drive_video_file_name || 'video.mp4').trim();\n\nlet ig_video_url;\nif (prefix) {\n  ig_video_url = prefix.endsWith('/')\n    ? prefix + encodeURIComponent(fileName)\n    : `${prefix}${encodeURIComponent(fileName)}`;\n} else {\n  ig_video_url = `https://drive.google.com/uc?export=download&confirm=t&id=${fileId}`;\n}\n\nreturn [\n  {\n    json: {\n      ...gem,\n      ig_video_url,\n      ig_video_url_hint:\n        prefix\n          ? 'Using ig_video_url_prefix from Workflow constants.'\n          : 'Using Google Drive direct link \u2014 share this file (or folder) as Anyone with the link can view.',\n    },\n  },\n];\n"
+      },
+      "id": "v4-ig-video-url-001",
+      "name": "IG Build video URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2480,
+        32
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule 6PM IST": {
+      "main": [
+        [
+          {
+            "node": "Workflow constants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual test trigger": {
+      "main": [
+        [
+          {
+            "node": "Workflow constants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow constants": {
+      "main": [
+        [
+          {
+            "node": "Read Config tab",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Config tab": {
+      "main": [
+        [
+          {
+            "node": "Only enabled categories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Only enabled categories": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Categories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Categories": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Search next videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search next videos": {
+      "main": [
+        [
+          {
+            "node": "Pick oldest video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick oldest video": {
+      "main": [
+        [
+          {
+            "node": "Has video?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has video?": {
+      "main": [
+        [
+          {
+            "node": "Download video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log skipped (no video)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log skipped (no video)": {
+      "main": [
+        [
+          {
+            "node": "Continue loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download video": {
+      "main": [
+        [
+          {
+            "node": "Gemini title + captions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini title + captions": {
+      "main": [
+        [
+          {
+            "node": "Upload YouTube",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "FB Get page token",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "IG Reels 1 Create container",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "IG Merge video + container",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload YouTube": {
+      "main": [
+        [
+          {
+            "node": "Merge social uploads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect post links": {
+      "main": [
+        [
+          {
+            "node": "Log post row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log post row": {
+      "main": [
+        [
+          {
+            "node": "Move to done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Move to done?": {
+      "main": [
+        [
+          {
+            "node": "Move file to done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Continue loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Move file to done": {
+      "main": [
+        [
+          {
+            "node": "Continue loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Continue loop": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Categories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram Reels (Graph)": {
+      "main": [
+        [
+          {
+            "node": "IG Fetch post link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Reels 1 Create container": {
+      "main": [
+        [
+          {
+            "node": "IG Merge video + container",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "IG Merge video + container": {
+      "main": [
+        [
+          {
+            "node": "IG Reels 2 Prepare upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Reels 2 Prepare upload": {
+      "main": [
+        [
+          {
+            "node": "IG Reels 3 Rupload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Reels 3 Rupload": {
+      "main": [
+        [
+          {
+            "node": "IG Wait for processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Wait for processing": {
+      "main": [
+        [
+          {
+            "node": "Instagram Reels (Graph)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Fetch post link": {
+      "main": [
+        [
+          {
+            "node": "Merge social uploads",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge social uploads": {
+      "main": [
+        [
+          {
+            "node": "Collect post links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Reels 1 Start": {
+      "main": [
+        [
+          {
+            "node": "FB Reels 2 Prepare upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Reels 2 Prepare upload": {
+      "main": [
+        [
+          {
+            "node": "FB Reels 3 Upload video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Reels 3 Upload video": {
+      "main": [
+        [
+          {
+            "node": "FB Wait after upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Reels 4 Finish": {
+      "main": [
+        [
+          {
+            "node": "FB Fetch post link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Fetch post link": {
+      "main": [
+        [
+          {
+            "node": "Merge social uploads",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "FB Wait after upload": {
+      "main": [
+        [
+          {
+            "node": "FB Reels 4 Finish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Resolve page token": {
+      "main": [
+        [
+          {
+            "node": "FB Reels 1 Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Get page token": {
+      "main": [
+        [
+          {
+            "node": "FB Resolve page token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Build video URL": {
+      "main": [
+        [
+          {
+            "node": "IG Reels 1 Create container",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "7aa6eb07-f606-4e24-b4ea-b808f495091e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d09eef86c8d7585d692a7cbc02ec0c6f06bdccef2213f96f959a3622fa7ea898",
+    "templateVersion": "v3-embedded-imports",
+    "embeddedCodeFromImport": {
+      "Gemini title + captions": "import/gemini-title-captions-code.js",
+      "Collect post links": "import/collect-post-links-code.js",
+      "IG Build video URL": "import/ig-build-video-url-code.js",
+      "IG Reels 2 Prepare upload": "import/ig-reels-2-prepare-upload-code.js",
+      "FB Reels 2 Prepare upload": "import/fb-reels-2-prepare-upload-code.js",
+      "FB Resolve page token": "import/fb-resolve-page-token-code.js"
+    }
+  },
+  "nodeGroups": [],
+  "id": "SmsafHdAqlSelT9z",
+  "tags": []
+}
